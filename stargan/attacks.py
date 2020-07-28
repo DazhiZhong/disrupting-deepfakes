@@ -125,7 +125,6 @@ class LinfPGDAttack(object):
         return X, X - X_nat
 
 
-
     def perturb_Adam(self, X_nat, y, c_trg):
         """
         Adam Attack.
@@ -164,6 +163,46 @@ class LinfPGDAttack(object):
 
         return X, X - X_nat
 
+
+
+    def perturb_momentum_scaled(self, X_nat, y, c_trg):
+        """
+        Momentum Attack.
+        """
+        if self.rand:
+            X = X_nat.clone().detach_() + torch.tensor(np.random.uniform(-self.epsilon, self.epsilon, X_nat.shape).astype('float32')).to(self.device)
+        else:
+            X = X_nat.clone().detach_()
+            # use the following if FGSM or I-FGSM and random seeds are fixed
+            # X = X_nat.clone().detach_() + torch.tensor(np.random.uniform(-0.001, 0.001, X_nat.shape).astype('float32')).cuda()    
+
+
+        past_grads = torch.zeros_like(X)
+        m = 1.0
+        for i in range(self.k):
+            X.requires_grad = True
+
+            grads = torch.zeros_like(X)
+            for j in range(5):
+                output, feats = self.model((X / (2 ** j)),c_trg)
+                if self.feat:
+                    output = feats[self.feat]
+                self.model.zero_grad()
+                loss = self.loss_fn(output,y)
+                loss.backward()
+                grads += X.grad
+            # grads /= 5
+
+            past_grads = momentum(m, grads, past_grads)
+
+            X_adv = X + self.a * past_grads.sign()
+
+            eta = torch.clamp(X_adv - X_nat, min=-self.epsilon, max=self.epsilon)
+            X = torch.clamp(X_nat + eta, min=-1, max=1).detach_()
+
+        self.model.zero_grad()
+
+        return X, X - X_nat
 
 
     def perturb_blur(self, X_nat, y, c_trg):

@@ -975,13 +975,14 @@ class Solver(object):
                     gen_noattack, gen_noattack_feats = self.G(x_real_mod, c_trg)
 
                 # Attacks
-                # x_adv, perturb = pgd_attack.perturb_vanilla(x_real, gen_noattack, c_trg)                          # Vanilla attack
-                # x_adv, perturb, blurred_image = pgd_attack.perturb_blur(x_real, gen_noattack, c_trg)    # White-box attack on blur
-                # x_adv, perturb = pgd_attack.perturb_blur_iter_full(x_real, gen_noattack, c_trg)         # Spread-spectrum attack on blur
-                # x_adv, perturb = pgd_attack.perturb_blur_eot(x_real, gen_noattack, c_trg)               # EoT blur adaptation
+                # x_adv, perturb = pgd_attack.perturb_vanilla(x_real, gen_noattack, c_trg)                  # Vanilla attack
+                # x_adv, perturb, blurred_image = pgd_attack.perturb_blur(x_real, gen_noattack, c_trg)      # White-box attack on blur
+                # x_adv, perturb = pgd_attack.perturb_blur_iter_full(x_real, gen_noattack, c_trg)           # Spread-spectrum attack on blur
+                # x_adv, perturb = pgd_attack.perturb_blur_eot(x_real, gen_noattack, c_trg)                 # EoT blur adaptation
                 # x_adv, perturb = pgd_attack.perturb_blur_eot_momentum(x_real, gen_noattack, c_trg)        # EoT blur momentum
                 # x_adv, perturb = pgd_attack.perturb_momentum(x_real, gen_noattack, c_trg)                 # momentum
-                x_adv, perturb = pgd_attack.perturb_Adam(x_real, gen_noattack, c_trg)                     # Adam
+                # x_adv, perturb = pgd_attack.perturb_Adam(x_real, gen_noattack, c_trg)                     # Adam
+                x_adv, perturb = pgd_attack.perturb_momentum_scaled(x_real, gen_noattack, c_trg)          # momentum scale invariance
 
                 # Generate adversarial example
                 x_adv = x_real + perturb
@@ -1015,7 +1016,7 @@ class Solver(object):
             save_image(self.denorm(x_concat.data.cpu()), result_path, nrow=1, padding=0)
             # if i == 49:     # stop after this many images
             #     break
-            if i == 10:
+            if i == 19:
                 break
         
         # Print metrics
