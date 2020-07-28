@@ -102,18 +102,19 @@ class LinfPGDAttack(object):
         m = 1.0
         for i in range(self.k):
             X.requires_grad = True
-            output, feats = self.model(X, c_trg)
 
-            if self.feat:
+            grads = torch.zeros_like(X)
+            for j in range(5):
+              output, feats = self.model((X / (2 ** j)),c_trg)
+              if self.feat:
                 output = feats[self.feat]
+              self.model.zero_grad()
+              loss = self.loss_fn(output,y)
+              loss.backward()
+              grads += X.grad
+            # grads /= 5
 
-            self.model.zero_grad()
-            # Minus in the loss means "towards" and plus means "away from"
-            loss = self.loss_fn(output, y)
-            loss.backward()
-            grad = X.grad
-
-            past_grads = momentum(m, grad, past_grads)
+            past_grads = momentum(m, grads, past_grads)
 
             X_adv = X + self.a * past_grads.sign()
 
