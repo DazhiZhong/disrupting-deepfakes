@@ -103,8 +103,8 @@ class Solver(object):
         num_params = 0
         for p in model.parameters():
             num_params += p.numel()
-        print(model)
-        print(name)
+        # print(model)
+        # print(name)
         print("The number of parameters: {}".format(num_params))
 
     def restore_model(self, resume_iters):
@@ -979,7 +979,9 @@ class Solver(object):
                 # x_adv, perturb, blurred_image = pgd_attack.perturb_blur(x_real, gen_noattack, c_trg)    # White-box attack on blur
                 # x_adv, perturb = pgd_attack.perturb_blur_iter_full(x_real, gen_noattack, c_trg)         # Spread-spectrum attack on blur
                 # x_adv, perturb = pgd_attack.perturb_blur_eot(x_real, gen_noattack, c_trg)               # EoT blur adaptation
-                x_adv, perturb = pgd_attack.perturb_blur_eot_momentum(x_real, gen_noattack, c_trg)
+                # x_adv, perturb = pgd_attack.perturb_blur_eot_momentum(x_real, gen_noattack, c_trg)        # EoT blur momentum
+                # x_adv, perturb = pgd_attack.perturb_momentum(x_real, gen_noattack, c_trg)                 # momentum
+                x_adv, perturb = pgd_attack.perturb_Adam(x_real, gen_noattack, c_trg)                     # Adam
 
                 # Generate adversarial example
                 x_adv = x_real + perturb
