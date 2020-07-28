@@ -260,6 +260,38 @@ class LinfPGDAttack(object):
 
         return X, eta
 
+    def perturb_momentum_class(self,X_nat, y, c_trg):
+        if self.rand:
+            X = X_nat.clone().detach_() + torch.tensor(np.random.uniform(-self.epsilon,self.epsilon,X_nat.shape).astype('float32o')).to(self.device)
+        else:
+            X = X_nat.clone().detach_()
+
+        j = 0
+        J = len(c_trg)
+        noise = torch.zeros_like(X)
+        momentum = 1.0
+
+        for i in range(self.k):
+            X.requires_grad = True
+            output, feats = self.model(X, c_trg[j])
+
+            self.model.zero_grad()
+
+            loss = self.loss_fn(output,y)
+            loss.backward()
+            grad = X.grad
+            noise = noise * momentum + grad / torch.mean(abs(grad),(1,2,3),True)
+
+            X_adv = X + self.a * noise.sign()
+            eta = torch.clamp(X_adv - X_nat, min=-self.epsilon, max=self.epsilon)
+            X = torch.clamp(X_nat + eta, min=-1, max=1).detach_()
+
+            j += 1 
+            if j == J:
+                j = 0
+        return X, eta
+
+
     def perturb_joint_class(self, X_nat, y, c_trg):
         """
         Joint Class Conditional Attack
