@@ -8,6 +8,23 @@ import torch.nn as nn
 
 import defenses.smoothing as smoothing
 
+def Adam(beta1, beta2, grad, accum_g, accum_s):
+
+    # L_inf norm
+    grad_normed = grad / torch.mean(torch.abs(grad),(1,2,3),True)
+
+
+    # Adam algorithm
+    accum_g = grad_normed * (1-beta_1) + accum_g * beta_1
+    accum_s = grad * grad * (1-beta_2) + accum_s * beta_2
+
+    accum_g_hat = accum_g / (1 - torch.pow(beta_1,i+1))
+    accum_s_hat = accum_s / (1 - torch.pow(beta_2,i+1))
+
+    # x = x + optimized_grad
+    return ((alpha/torch.pow(accum_s_hat, 0.5)+1e-6)*accum_g_hat.sign())
+
+
 class LinfPGDAttack(object):
     def __init__(self, model=None, device=None, epsilon=0.05, k=10, a=0.01, feat = None):
         """
