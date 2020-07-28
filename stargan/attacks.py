@@ -16,7 +16,7 @@ def momentum(m, grad, accum):
 def Adam(grad, accum_g, accum_s, i, beta_1=0.8, beta_2=0.999, alpha=1):
 
     # L_inf norm
-    grad_normed = grad / torch.norm(grad,float(1),True)
+    grad_normed = grad / torch.norm(grad,1,True)
 
 
     # Adam algorithm
@@ -140,7 +140,6 @@ class LinfPGDAttack(object):
 
         accum_g = torch.zeros_like(X)
         accum_s = torch.zeros_like(X)
-        m = 1.0
         for i in range(self.k):
             X.requires_grad = True
             output, feats = self.model(X, c_trg)

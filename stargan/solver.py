@@ -975,7 +975,7 @@ class Solver(object):
                     gen_noattack, gen_noattack_feats = self.G(x_real_mod, c_trg)
 
                 # Attacks
-                # x_adv, perturb = pgd_attack.perturb(x_real, gen_noattack, c_trg)                          # Vanilla attack
+                # x_adv, perturb = pgd_attack.perturb_vanilla(x_real, gen_noattack, c_trg)                          # Vanilla attack
                 # x_adv, perturb, blurred_image = pgd_attack.perturb_blur(x_real, gen_noattack, c_trg)    # White-box attack on blur
                 # x_adv, perturb = pgd_attack.perturb_blur_iter_full(x_real, gen_noattack, c_trg)         # Spread-spectrum attack on blur
                 # x_adv, perturb = pgd_attack.perturb_blur_eot(x_real, gen_noattack, c_trg)               # EoT blur adaptation
