@@ -224,6 +224,71 @@ class LinfPGDAttack(object):
 
         return X, X - X_nat
 
+    def perturb_blur_eot_momentum(self, X_nat, y, c_trg):
+        """
+        EoT adaptation to the blur transformation.
+        """
+        if self.rand:
+            X = X_nat.clone().detach_() + torch.tensor(np.random.uniform(-self.epsilon, self.epsilon, X_nat.shape).astype('float32')).to(self.device)
+        else:
+            X = X_nat.clone().detach_()
+            # use the following if FGSM or I-FGSM and random seeds are fixed
+            # X = X_nat.clone().detach_() + torch.tensor(np.random.uniform(-0.001, 0.001, X_nat.shape).astype('float32')).cuda()  
+
+        # Gaussian blur kernel size
+        ks_gauss = 11
+        # Average smoothing kernel size
+        ks_avg = 3
+        # Sigma for Gaussian blur
+        sig = 1
+        # Type of blur
+        blur_type = 1
+        momentum = 1.0
+        noise = torch.zeros_like(X)
+
+        for i in range(self.k):
+            full_loss = 0.0
+            X.requires_grad = True
+            self.model.zero_grad()
+
+            for j in range(9):  # 9 types of blur
+                # Declare smoothing layer
+                if blur_type == 1:
+                    preproc = smoothing.GaussianSmoothing2D(sigma=sig, channels=3, kernel_size=ks_gauss).to(self.device)
+                elif blur_type == 2:
+                    preproc = smoothing.AverageSmoothing2D(channels=3, kernel_size=ks_avg).to(self.device)
+
+            
+                output, feats = self.model.forward_blur(X, c_trg, preproc)
+            
+                loss = self.loss_fn(output, y)
+                full_loss += loss
+
+                if blur_type == 1:
+                    sig += 0.5
+                    if sig >= 3.2:
+                        blur_type = 2
+                        sig = 1
+                if blur_type == 2:
+                    ks_avg += 2
+                    if ks_avg >= 11:
+                        blur_type = 1
+                        ks_avg = 3
+                
+            full_loss.backward()
+            grad = X.grad
+            noise = momentum * noise + grad / torch.mean(abs(grad),(1,2,3),True)
+
+            X_adv = X + self.a * noise.sign()
+
+            eta = torch.clamp(X_adv - X_nat, min=-self.epsilon, max=self.epsilon)
+            X = torch.clamp(X_nat + eta, min=-1, max=1).detach_()
+
+        self.model.zero_grad()
+
+        return X, X - X_nat
+
+
 
     def perturb_iter_class(self, X_nat, y, c_trg):
         """
@@ -259,6 +324,38 @@ class LinfPGDAttack(object):
                 j = 0
 
         return X, eta
+
+    def perturb_momentum_class(self,X_nat, y, c_trg):
+        if self.rand:
+            X = X_nat.clone().detach_() + torch.tensor(np.random.uniform(-self.epsilon,self.epsilon,X_nat.shape).astype('float32o')).to(self.device)
+        else:
+            X = X_nat.clone().detach_()
+
+        j = 0
+        J = len(c_trg)
+        noise = torch.zeros_like(X)
+        momentum = 1.0
+
+        for i in range(self.k):
+            X.requires_grad = True
+            output, feats = self.model(X, c_trg[j])
+
+            self.model.zero_grad()
+
+            loss = self.loss_fn(output,y)
+            loss.backward()
+            grad = X.grad
+            noise = noise * momentum + grad / torch.mean(abs(grad),(1,2,3),True)
+
+            X_adv = X + self.a * noise.sign()
+            eta = torch.clamp(X_adv - X_nat, min=-self.epsilon, max=self.epsilon)
+            X = torch.clamp(X_nat + eta, min=-1, max=1).detach_()
+
+            j += 1 
+            if j == J:
+                j = 0
+        return X, eta
+
 
     def perturb_joint_class(self, X_nat, y, c_trg):
         """
