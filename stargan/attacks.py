@@ -5,35 +5,38 @@ from scipy.stats import truncnorm
 
 import torch
 import torch.nn as nn
-
+import matplotlib
+import matplotlib.pyplot as plt
 import defenses.smoothing as smoothing
 
 from torchvision import transforms
 import PIL
 
 def input_diversity(input_tensor):
-    image_resize = 331
-    image_width = 299
-    image_height = 299
+    image_resize = 500
+    image_width = 128
+    image_height = 128
     prob = 0.5
 
     rnd = int((image_resize - image_width) * torch.rand(()) + image_width)
-    rescale = transforms.Compose([transforms.Resize((float(rnd),float(rnd)),interpolation=PIL.Image.NEAREST)])
-    rescaled = rescale(input_tensor)
+    # rescale = transforms.Compose([transforms.Resize((float(rnd),float(rnd)),interpolation=PIL.Image.NEAREST)])
+    # rescaled = rescale(input_tensor)
+    rescaled = nn.functional.interpolate(input_tensor,size=rnd,mode='nearest')
     h_rem = image_resize - rnd
     w_rem = image_resize - rnd
     pad_top = int(h_rem * torch.rand(()))
     pad_bottom = h_rem - pad_top
     pad_left = int(w_rem * torch.rand(()))
     pad_right = w_rem - pad_left
-    padding = transforms.Compose([transforms.Pad(([0, 0], [pad_top, pad_bottom], [pad_left, pad_right], [0, 0]),fill=0,padding_mode='constant')])
-    padded = padding(rescaled)
-    padded = padded.view(((input_tensor.shape[0], image_resize, image_resize, 3)))
-    ret = lambda: padded if torch.rand((1))[0] > prob else lambda: input_tensor
-    rescale_back = transforms.Compose([transforms.Resize((float(image_height),float(image_width)),interpolation=PIL.Image.NEAREST)])
-    ret = rescale_back(ret)
+    # padding = transforms.Compose([transforms.Pad(([0, 0], [pad_top, pad_bottom], [pad_left, pad_right], [0, 0]),fill=0,padding_mode='constant')])
+    # padded = padding(rescaled)
+    padded = nn.functional.pad(rescaled, (pad_left, pad_right,pad_top, pad_bottom),mode='constant',value=0.)
+    padded = padded.view((input_tensor.shape[0], image_resize, image_resize,3)).permute(0, 3, 1, 2)
+    ret = padded if torch.rand((1))[0] > prob else input_tensor
+    ret = nn.functional.interpolate(ret,size=image_height,mode='nearest')
 
     return ret
+    
 
 def momentum(m, grad, accum):
     grad = grad / torch.norm(grad,float(1),True)
@@ -194,7 +197,7 @@ class LinfPGDAttack(object):
 
     def perturb_momentum_scaled(self, X_nat, y, c_trg):
         """
-        Momentum Attack.
+        Momentum Attack with scale invariance
         """
         if self.rand:
             X = X_nat.clone().detach_() + torch.tensor(np.random.uniform(-self.epsilon, self.epsilon, X_nat.shape).astype('float32')).to(self.device)
@@ -206,18 +209,22 @@ class LinfPGDAttack(object):
 
         past_grads = torch.zeros_like(X)
         m = 1.0
-        for i in range(self.k):
+        for _ in range(self.k):
             X.requires_grad = True
 
             grads = torch.zeros_like(X)
             for j in range(5):
-                output, feats = self.model((X / (2 ** j)),c_trg)
+                X_temp = X.clone().detach_()
+                X_temp.requires_grad = True
+
+                output, feats = self.model(input_diversity(X_temp/(2**j)),c_trg)
                 if self.feat:
                     output = feats[self.feat]
+
                 self.model.zero_grad()
                 loss = self.loss_fn(output,y)
                 loss.backward()
-                grads += X.grad
+                grads += X_temp.grad
             # grads /= 5
 
             past_grads = momentum(m, grads, past_grads)
