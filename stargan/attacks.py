@@ -8,6 +8,33 @@ import torch.nn as nn
 
 import defenses.smoothing as smoothing
 
+from torchvision import transforms
+import PIL
+
+def input_diversity(input_tensor):
+    image_resize = 331
+    image_width = 299
+    image_height = 299
+    prob = 0.5
+
+    rnd = int((image_resize - image_width) * torch.rand(()) + image_width)
+    rescale = transforms.Compose([transforms.Resize((float(rnd),float(rnd)),interpolation=PIL.Image.NEAREST)])
+    rescaled = rescale(input_tensor)
+    h_rem = image_resize - rnd
+    w_rem = image_resize - rnd
+    pad_top = int(h_rem * torch.rand(()))
+    pad_bottom = h_rem - pad_top
+    pad_left = int(w_rem * torch.rand(()))
+    pad_right = w_rem - pad_left
+    padding = transforms.Compose([transforms.Pad(([0, 0], [pad_top, pad_bottom], [pad_left, pad_right], [0, 0]),fill=0,padding_mode='constant')])
+    padded = padding(rescaled)
+    padded = padded.view(((input_tensor.shape[0], image_resize, image_resize, 3)))
+    ret = lambda: padded if torch.rand((1))[0] > prob else lambda: input_tensor
+    rescale_back = transforms.Compose([transforms.Resize((float(image_height),float(image_width)),interpolation=PIL.Image.NEAREST)])
+    ret = rescale_back(ret)
+
+    return ret
+
 def momentum(m, grad, accum):
     grad = grad / torch.norm(grad,float(1),True)
     accum = m * accum + grad
