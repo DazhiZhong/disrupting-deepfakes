@@ -5,12 +5,10 @@ from scipy.stats import truncnorm
 
 import torch
 import torch.nn as nn
-import matplotlib
-import matplotlib.pyplot as plt
 import defenses.smoothing as smoothing
 
-from torchvision import transforms
-import PIL
+# from torchvision import transforms
+# import PIL
 
 def input_diversity(input_tensor):
     image_resize = 500
