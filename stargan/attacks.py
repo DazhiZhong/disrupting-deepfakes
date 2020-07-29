@@ -167,7 +167,7 @@ class LinfPGDAttack(object):
 
     def perturb_momentum_scaled(self, X_nat, y, c_trg):
         """
-        Momentum Attack.
+        Momentum Attack with scale invariance
         """
         if self.rand:
             X = X_nat.clone().detach_() + torch.tensor(np.random.uniform(-self.epsilon, self.epsilon, X_nat.shape).astype('float32')).to(self.device)
