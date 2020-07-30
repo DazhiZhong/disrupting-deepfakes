@@ -51,7 +51,7 @@ def Adam(grad, accum_g, accum_s, i, beta_1=0.9, beta_2=0.999, alpha=0.01):
     accum_s_hat = accum_s / (1 - (beta_2 ** (i+1)))
 
     # x = x + optimized_grad
-    return accum_g, accum_s, alpha/(torch.pow(accum_s_hat, 0.5) + 1e-6)*accum_g_hat.sign()
+    return accum_g, accum_s, alpha/(torch.pow(accum_s_hat, 0.5) + 1e-6), accum_g_hat
 
 
 
@@ -176,9 +176,9 @@ class LinfPGDAttack(object):
             loss.backward()
             grad = X.grad
 
-            accum_g, accum_s, grad = Adam(grad, accum_g, accum_s, i)
+            accum_g, accum_s, new_a, grad = Adam(grad, accum_g, accum_s, i)
 
-            X_adv = X + self.a * grad.sign()
+            X_adv = X + new_a * grad.sign()
 
             eta = torch.clamp(X_adv - X_nat, min=-self.epsilon, max=self.epsilon)
             X = torch.clamp(X_nat + eta, min=-1, max=1).detach_()
@@ -261,9 +261,9 @@ class LinfPGDAttack(object):
                 loss.backward()
                 grads += X_temp.grad
             # past_grads = momentum(m, grads, past_grads)
-            accum_g, accum_s, grad = Adam(grads, accum_g, accum_s, i)
+            accum_g, accum_s, new_a, grad = Adam(grads, accum_g, accum_s, i)
             
-            X_adv = X + self.a * grad.sign()
+            X_adv = X + new_a * grad.sign()
 
             eta = torch.clamp(X_adv - X_nat, min=-self.epsilon, max=self.epsilon)
             X = torch.clamp(X_nat + eta, min=-1, max=1).detach_()
