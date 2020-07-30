@@ -982,7 +982,8 @@ class Solver(object):
                 # x_adv, perturb = pgd_attack.perturb_blur_eot_momentum(x_real, gen_noattack, c_trg)        # EoT blur momentum
                 # x_adv, perturb = pgd_attack.perturb_momentum(x_real, gen_noattack, c_trg)                 # momentum
                 # x_adv, perturb = pgd_attack.perturb_Adam(x_real, gen_noattack, c_trg)                     # Adam
-                x_adv, perturb = pgd_attack.perturb_momentum_scaled(x_real, gen_noattack, c_trg)          # momentum scale invariance
+                # x_adv, perturb = pgd_attack.perturb_momentum_scaled(x_real, gen_noattack, c_trg)          # momentum scale invariance
+                x_adv, perturb = pgd_attack.perturb_Adam_scaled(x_real, gen_noattack, c_trg)                # adam scale invariance
 
                 # Generate adversarial example
                 x_adv = x_real + perturb
