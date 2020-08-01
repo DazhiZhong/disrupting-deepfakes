@@ -12,7 +12,7 @@ import defenses.smoothing as smoothing
 # import PIL
 
 def input_diversity(input_tensor):
-    image_resize = 500
+    image_resize = 180
     image_width = 128
     image_height = 128
     prob = 0.5
@@ -25,7 +25,7 @@ def input_diversity(input_tensor):
     pad_bottom = h_rem - pad_top
     pad_left = int(w_rem * torch.rand(()))
     pad_right = w_rem - pad_left
-    padded = nn.functional.pad(rescaled, (pad_left, pad_right,pad_top, pad_bottom),mode='constant',value=0.)
+    padded = nn.functional.pad(rescaled, (pad_left, pad_right,pad_top, pad_bottom,0,0),mode='constant',value=0.)
     padded = padded.view((input_tensor.shape[0], image_resize, image_resize,3)).permute(0, 3, 1, 2)
     ret = padded if torch.rand((1))[0] > prob else input_tensor
     ret = nn.functional.interpolate(ret,size=image_height,mode='nearest')
@@ -33,19 +33,18 @@ def input_diversity(input_tensor):
     return ret
 
 def momentum(m, grad, accum):
-    grad = grad / torch.norm(grad,1,True)
+    grad = grad / torch.mean(torch.abs(grad),[1,2,3],keepdim=True)
     accum = m * accum + grad
     return accum
 
-def Adam(grad, accum_g, accum_s, i, beta_1=0.9, beta_2=0.999, alpha=0.01):
+def Adam(grad, accum_g, accum_s, i, beta_1=0.9, beta_2=0.999, alpha=0.005):
 
     # L_inf norm
-    grad_normed = grad / torch.norm(grad,1,True)
-
+    grad_normed = grad / torch.mean(torch.abs(grad),[1,2,3],keepdim=True)
 
     # Adam algorithm
     accum_g = grad_normed * (1-beta_1) + accum_g * beta_1
-    accum_s = grad * grad * (1-beta_2) + accum_s * beta_2
+    accum_s = grad_normed * grad_normed * (1-beta_2) + accum_s * beta_2
 
     accum_g_hat = accum_g / (1 - (beta_1 ** (i+1)))
     accum_s_hat = accum_s / (1 - (beta_2 ** (i+1)))
@@ -56,7 +55,7 @@ def Adam(grad, accum_g, accum_s, i, beta_1=0.9, beta_2=0.999, alpha=0.01):
 
 
 class LinfPGDAttack(object):
-    def __init__(self, model=None, device=None, epsilon=0.05, k=100, a=0.01, feat = None):
+    def __init__(self, model=None, device=None, epsilon=0.05, k=100, a=0.005, feat = None):
         """
         FGSM, I-FGSM and PGD attacks
         epsilon: magnitude of attack
@@ -163,6 +162,7 @@ class LinfPGDAttack(object):
 
         accum_g = torch.zeros_like(X)
         accum_s = torch.zeros_like(X)
+        
         for i in range(self.k):
             X.requires_grad = True
             output, feats = self.model(X, c_trg)
