@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 
 def input_diversity(input_tensor):
-    image_resize = 500
+    image_resize = 180
     image_width = 128
     image_height = 128
     prob = 0.5
@@ -26,14 +26,14 @@ def input_diversity(input_tensor):
     ret = nn.functional.interpolate(ret,size=image_height,mode='nearest')
 
 def momentum(m,g,accum_g):
-    g = g / torch.norm(g,1,True)
+    g = g / torch.mean(torch.abs(g),[1,2,3],keepdim=True)
     accum_g = m * accum_g + g
     return accum
 
 def Adam(g,accum_g,accum_s,i,beta_1=0.9,beta_2=0.999,alpha=0.01):
-    g_normed = g / torch.norm(g,1,True)
+    g_normed = g / torch.mean(torch.abs(g),[1,2,3],keepdim=True)
     accum_g = g_normed * (1-beta_1) + accum_g * beta_1
-    accum_s = g * g * (1 - beta_2) + accum_s * beta_2
+    accum_s = g_normed * g_normed * (1 - beta_2) + accum_s * beta_2
     accum_g_hat = accum_g / (1 - (beta_1 ** (i+1)))
     accum_s_hat = accum_s / (1 - (beta_2 ** (i+1)))
     return accum_g, accum_s, alpha/(torch.pow(accum_s_hat, 0.5) + 1e-6), accum_g_hat
