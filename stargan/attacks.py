@@ -32,10 +32,13 @@ def input_diversity(input_tensor):
 
     return ret
 
+
+
 def momentum(m, grad, accum):
-    grad = grad / torch.mean(torch.abs(grad),[1,2,3],keepdim=True)
+    grad = grad / torch.mean(torch.abs(grad),1,keepdim=True)
     accum = m * accum + grad
     return accum
+
 
 def Adam(grad, accum_g, accum_s, i, beta_1=0.9, beta_2=0.999, alpha=0.005):
 
@@ -139,6 +142,123 @@ class LinfPGDAttack(object):
             past_grads = momentum(m, grad, past_grads)
 
             X_adv = X + self.a * past_grads.sign()
+
+            eta = torch.clamp(X_adv - X_nat, min=-self.epsilon, max=self.epsilon)
+            X = torch.clamp(X_nat + eta, min=-1, max=1).detach_()
+
+        self.model.zero_grad()
+
+        return X, X - X_nat
+
+    def perturb_nesterov(self, X_nat, y, c_trg):
+        if self.rand:
+            X = X_nat.clone().detach_() + torch.tensor(np.random.uniform(-self.epsilon, self.epsilon, X_nat.shape).astype('float32')).to(self.device)
+        else:
+            X = X_nat.clone().detach_()
+
+        past_grads = torch.zeros_like(X)
+        m = 0.9
+
+        for i in range(self.k):
+            X.requires_grad = True
+
+            
+            
+
+            output, feats = self.model(X, c_trg)
+            if self.feat:
+                output = feats[self.feat]
+            self.model.zero_grad()
+            # Minus in the loss means "towards" and plus means "away from"
+            loss = self.loss_fn(output, y)
+            loss.backward()
+
+            grad = X.grad
+            past_grads = momentum(m, grad, past_grads)
+            X_adv = X + self.a * past_grads.sign()
+            eta = torch.clamp(X_adv - X_nat, min=-self.epsilon, max=self.epsilon)
+            X = torch.clamp(X_nat + eta, min=-1, max=1).detach_()
+
+            if i!=(self.k-1): X = X + self.a * m * past_grads
+
+
+
+        self.model.zero_grad()
+
+        return X, X - X_nat
+
+
+    def perturb_adagrad(self, X_nat, y, c_trg):
+        """
+        Momentum Attack.
+        """
+        if self.rand:
+            X = X_nat.clone().detach_() + torch.tensor(np.random.uniform(-self.epsilon, self.epsilon, X_nat.shape).astype('float32')).to(self.device)
+        else:
+            X = X_nat.clone().detach_()
+            # use the following if FGSM or I-FGSM and random seeds are fixed
+            # X = X_nat.clone().detach_() + torch.tensor(np.random.uniform(-0.001, 0.001, X_nat.shape).astype('float32')).cuda()    
+
+
+        accum_grad = torch.zeros_like(X)
+
+        for i in range(self.k):
+            X.requires_grad = True
+            output, feats = self.model(X, c_trg)
+
+            if self.feat:
+                output = feats[self.feat]
+
+            self.model.zero_grad()
+            # Minus in the loss means "towards" and plus means "away from"
+            loss = self.loss_fn(output, y)
+            loss.backward()
+            grad = X.grad
+
+            
+            grad_normed = grad / torch.norm(grad,1.0,True)
+
+            accum_grad = grad_normed* grad_normed + accum_grad
+
+            X_adv = X + (self.a / (torch.sqrt(accum_grad+1e-6))) * grad_normed.sign()
+
+            eta = torch.clamp(X_adv - X_nat, min=-self.epsilon, max=self.epsilon)
+            X = torch.clamp(X_nat + eta, min=-1, max=1).detach_()
+
+        self.model.zero_grad()
+
+        return X, X - X_nat
+
+    def perturb_rmsprop(self, X_nat, y, c_trg):
+        if self.rand:
+            X = X_nat.clone().detach_() + torch.tensor(np.random.uniform(-self.epsilon, self.epsilon, X_nat.shape).astype('float32')).to(self.device)
+        else:
+            X = X_nat.clone().detach_()
+            # use the following if FGSM or I-FGSM and random seeds are fixed
+            # X = X_nat.clone().detach_() + torch.tensor(np.random.uniform(-0.001, 0.001, X_nat.shape).astype('float32')).cuda()    
+
+
+        accum_grad = torch.zeros_like(X)
+        m =  0.9
+        for i in range(self.k):
+            X.requires_grad = True
+            output, feats = self.model(X, c_trg)
+
+            if self.feat:
+                output = feats[self.feat]
+
+            self.model.zero_grad()
+            # Minus in the loss means "towards" and plus means "away from"
+            loss = self.loss_fn(output, y)
+            loss.backward()
+            grad = X.grad
+
+            
+            grad_normed = grad / torch.norm(grad,1.0,True)
+
+            accum_grad = (1-m)*grad_normed* grad_normed + m*accum_grad
+
+            X_adv = X + (self.a / (torch.sqrt(accum_grad+1e-6))) * grad_normed.sign()
 
             eta = torch.clamp(X_adv - X_nat, min=-self.epsilon, max=self.epsilon)
             X = torch.clamp(X_nat + eta, min=-1, max=1).detach_()
