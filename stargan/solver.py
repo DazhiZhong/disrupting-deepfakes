@@ -10,6 +10,8 @@ import time
 import datetime
 import attacks
 
+from metrics import *
+
 from PIL import ImageFilter
 from PIL import Image
 from torchvision import transforms
@@ -945,84 +947,112 @@ class Solver(object):
         """Vanilla or blur attacks."""
 
         # Load the trained generator.
-        self.restore_model(self.test_iters)
-        
-        # Set data loader.
-        if self.dataset == 'CelebA':
-            data_loader = self.celeba_loader
-        elif self.dataset == 'RaFD':
-            data_loader = self.rafd_loader
+        pgd_attack = attacks.LinfPGDAttack(model=self.G, device=self.device, feat=None)
+        for attackmodel in [pgd_attack.perturb_rmsprop, pgd_attack.perturb_adagrad,pgd_attack.perturb_Adam, pgd_attack.perturb_vanilla, pgd_attack.perturb_nesterov ]:
+            print('\n',attackmodel)
 
-        # Initialize Metrics
-        l1_error, l2_error, min_dist, l0_error = 0.0, 0.0, 0.0, 0.0
-        n_dist, n_samples = 0, 0
-
-        for i, (x_real, c_org) in enumerate(data_loader):
-            # Prepare input images and target domain labels.
-            x_real = x_real.to(self.device)
-            c_trg_list = self.create_labels(c_org, self.c_dim, self.dataset, self.selected_attrs)
-
-            pgd_attack = attacks.LinfPGDAttack(model=self.G, device=self.device, feat=None)
-
-            # Translated images.
-            x_fake_list = [x_real]
+            self.restore_model(self.test_iters)
             
-            for idx, c_trg in enumerate(c_trg_list):
-                print('image', i, 'class', idx)
-                with torch.no_grad():
-                    x_real_mod = x_real
-                    # x_real_mod = self.blur_tensor(x_real_mod) # use blur
-                    gen_noattack, gen_noattack_feats = self.G(x_real_mod, c_trg)
+            # Set data loader.
+            if self.dataset == 'CelebA':
+                data_loader = self.celeba_loader
+            elif self.dataset == 'RaFD':
+                data_loader = self.rafd_loader
 
-                # Attacks
-                # x_adv, perturb = pgd_attack.perturb_vanilla(x_real, gen_noattack, c_trg)                  # Vanilla attack
-                # x_adv, perturb, blurred_image = pgd_attack.perturb_blur(x_real, gen_noattack, c_trg)      # White-box attack on blur
-                # x_adv, perturb = pgd_attack.perturb_blur_iter_full(x_real, gen_noattack, c_trg)           # Spread-spectrum attack on blur
-                # x_adv, perturb = pgd_attack.perturb_blur_eot(x_real, gen_noattack, c_trg)                 # EoT blur adaptation
-                # x_adv, perturb = pgd_attack.perturb_blur_eot_momentum(x_real, gen_noattack, c_trg)        # EoT blur momentum
-                # x_adv, perturb = pgd_attack.perturb_momentum(x_real, gen_noattack, c_trg)                 # momentum
-                # x_adv, perturb = pgd_attack.perturb_Adam(x_real, gen_noattack, c_trg)                     # Adam
-                # x_adv, perturb = pgd_attack.perturb_momentum_scaled(x_real, gen_noattack, c_trg)          # momentum scale invariance
-                x_adv, perturb = pgd_attack.perturb_Adam_scaled(x_real, gen_noattack, c_trg)                # adam scale invariance
+            # Initialize Metrics
+            l1_error, l2_error, min_dist, l0_error = 0.0, 0.0, 0.0, 0.0
+            genssim, genpsnr, xssim, xpsnr = 0.0, 0.0, 0.0, 0.0
+            n_dist, n_samples = 0, 0
 
-                # Generate adversarial example
-                x_adv = x_real + perturb
+            for i, (x_real, c_org) in enumerate(data_loader):
+                # Prepare input images and target domain labels.
+                x_real = x_real.to(self.device)
+                c_trg_list = self.create_labels(c_org, self.c_dim, self.dataset, self.selected_attrs)
 
-                # No attack
-                # x_adv = x_real
+                
 
-                # x_adv = self.blur_tensor(x_adv)   # use blur
+                # Translated images.
+                x_fake_list = [x_real]
+                
+                for idx, c_trg in enumerate(c_trg_list):
+                    # print('image', i, 'class', idx)
+                    with torch.no_grad():
+                        x_real_mod = x_real
+                        # x_real_mod = self.blur_tensor(x_real_mod) # use blur
+                        gen_noattack, gen_noattack_feats = self.G(x_real_mod, c_trg)
 
-                # Metrics
-                with torch.no_grad():
-                    gen, _ = self.G(x_adv, c_trg)
+                    # Attacks
+                    # x_adv, perturb = pgd_attack.perturb_vanilla(x_real, gen_noattack, c_trg)                  # Vanilla attack
+                    # x_adv, perturb, blurred_image = pgd_attack.perturb_blur(x_real, gen_noattack, c_trg)      # White-box attack on blur
+                    # x_adv, perturb = pgd_attack.perturb_blur_iter_full(x_real, gen_noattack, c_trg)           # Spread-spectrum attack on blur
+                    # x_adv, perturb = pgd_attack.perturb_blur_eot(x_real, gen_noattack, c_trg)                 # EoT blur adaptation
+                    # x_adv, perturb = pgd_attack.perturb_blur_eot_momentum(x_real, gen_noattack, c_trg)        # EoT blur momentum
+                    # x_adv, perturb = pgd_attack.perturb_momentum(x_real, gen_noattack, c_trg)                 # momentum
+                    x_adv, perturb = attackmodel(x_real, gen_noattack, c_trg)                     # Adam
+                    # x_adv, perturb = pgd_attack.perturb_momentum_scaled(x_real, gen_noattack, c_trg)          # momentum scale invariance
+                    # x_adv, perturb = pgd_attack.perturb_Adam_scaled(x_real, gen_noattack, c_trg)                # adam scale invariance
 
-                    # Add to lists
-                    # x_fake_list.append(blurred_image)
-                    x_fake_list.append(x_adv)
-                    # x_fake_list.append(perturb)
-                    x_fake_list.append(gen)
+                    # Generate adversarial example
+                    x_adv = x_real + perturb
 
-                    l1_error += F.l1_loss(gen, gen_noattack)
-                    l2_error += F.mse_loss(gen, gen_noattack)
-                    l0_error += (gen - gen_noattack).norm(0)
-                    min_dist += (gen - gen_noattack).norm(float('-inf'))
-                    if F.mse_loss(gen, gen_noattack) > 0.05:
-                        n_dist += 1
-                    n_samples += 1
+                    # No attack
+                    # x_adv = x_real
 
-            # Save the translated images.
-            x_concat = torch.cat(x_fake_list, dim=3)
-            result_path = os.path.join(self.result_dir, '{}-images.jpg'.format(i+1))
-            save_image(self.denorm(x_concat.data.cpu()), result_path, nrow=1, padding=0)
-            # if i == 49:     # stop after this many images
-            #     break
-            if i == 19:
-                break
-        
-        # Print metrics
-        print('{} images. L1 error: {}. L2 error: {}. prop_dist: {}. L0 error: {}. L_-inf error: {}.'.format(n_samples, 
-        l1_error / n_samples, l2_error / n_samples, float(n_dist) / n_samples, l0_error / n_samples, min_dist / n_samples))
+                    # x_adv = self.blur_tensor(x_adv)   # use blur
+
+                    # Metrics
+                    with torch.no_grad():
+                        gen, _ = self.G(x_adv, c_trg)
+
+                        # Add to lists
+                        # x_fake_list.append(blurred_image)
+                        x_fake_list.append(x_adv)
+                        # x_fake_list.append(perturb)
+                        x_fake_list.append(gen)
+
+
+                        metric = PSNR()
+                        genpsnr += metric(gen, gen_noattack).item()
+
+
+                        metric = SSIM()
+                        genssim += metric(gen, gen_noattack).item()
+
+
+
+                        metric = PSNR()
+                        xpsnr += metric(x_real, x_adv).item()
+
+
+                        metric = SSIM()
+                        xssim += metric(x_real, x_adv).item()
+
+
+
+
+
+                        l1_error += F.l1_loss(gen, gen_noattack)
+                        l2_error += F.mse_loss(gen, gen_noattack)
+                        l0_error += (gen - gen_noattack).norm(0)
+                        min_dist += (gen - gen_noattack).norm(float('-inf'))
+                        if F.mse_loss(gen, gen_noattack) > 0.05:
+                            n_dist += 1
+                        n_samples += 1
+
+                # Save the translated images.
+                x_concat = torch.cat(x_fake_list, dim=3)
+                result_path = os.path.join(self.result_dir, '{}-images.jpg'.format(i+1))
+                save_image(self.denorm(x_concat.data.cpu()), result_path, nrow=1, padding=0)
+                # if i == 49:     # stop after this many images
+                #     break
+                if i == 7:
+                    break
+            
+            # Print metrics
+            print(f'genssim={genssim/n_samples}, genpsnr={genpsnr/n_samples}, xssim={xssim/n_samples}, xpsnr={xpsnr/n_samples}')
+
+            print('{} images. L1 error: {}. L2 error: {}. prop_dist: {}. L0 error: {}. L_-inf error: {}.'.format(n_samples, 
+            l1_error / n_samples, l2_error / n_samples, float(n_dist) / n_samples, l0_error / n_samples, min_dist / n_samples))
 
     def test_attack_feats(self):
         """Feature-level attacks"""
