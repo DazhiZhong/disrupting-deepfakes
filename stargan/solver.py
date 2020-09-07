@@ -948,7 +948,19 @@ class Solver(object):
 
         # Load the trained generator.
         pgd_attack = attacks.LinfPGDAttack(model=self.G, device=self.device, feat=None)
-        for attackmodel in [pgd_attack.perturb_rmsprop, pgd_attack.perturb_adagrad,pgd_attack.perturb_Adam, pgd_attack.perturb_vanilla, pgd_attack.perturb_nesterov ]:
+        attackmodels = [
+                        pgd_attack.perturb_fgsm, 
+                        pgd_attack.perturb_vanilla, 
+                        
+                        pgd_attack.perturb_nesterov, 
+                        pgd_attack.perturb_momentum, 
+
+                        pgd_attack.perturb_Adam_nosign,
+                        pgd_attack.perturb_Adam, 
+                        pgd_attack.perturb_adagrad, 
+                        pgd_attack.perturb_rmsprop, 
+                        ]
+        for attackmodel in attackmodels:
             print('\n',attackmodel)
 
             self.restore_model(self.test_iters)
@@ -1041,11 +1053,11 @@ class Solver(object):
 
                 # Save the translated images.
                 x_concat = torch.cat(x_fake_list, dim=3)
-                result_path = os.path.join(self.result_dir, '{}-images.jpg'.format(i+1))
+                result_path = os.path.join(self.result_dir, f'{str(attackmodel)}-{i+1}-images.jpg')
                 save_image(self.denorm(x_concat.data.cpu()), result_path, nrow=1, padding=0)
                 # if i == 49:     # stop after this many images
                 #     break
-                if i == 7:
+                if i == 4:
                     break
             
             # Print metrics
@@ -1117,7 +1129,7 @@ class Solver(object):
 
                 # Save the translated images.
                 x_concat = torch.cat(x_fake_list, dim=3)
-                result_path = os.path.join(self.result_dir, '{}-{}-images.jpg'.format(layer_num_orig, i+1))
+                result_path = os.path.join(self.result_dir, f'{str()}-{layer_num_orig}-{i+1}-images.jpg')
                 save_image(self.denorm(x_concat.data.cpu()), result_path, nrow=1, padding=0)
                 if i == 49:
                     break
