@@ -949,19 +949,36 @@ class Solver(object):
         # Load the trained generator.
         pgd_attack = attacks.LinfPGDAttack(model=self.G, device=self.device, feat=None)
         attackmodels = [
-                        pgd_attack.perturb_fgsm, 
+                        # pgd_attack.perturb_fgsm, 
                         pgd_attack.perturb_vanilla, 
                         
                         pgd_attack.perturb_nesterov, 
-                        pgd_attack.perturb_momentum, 
+                        # pgd_attack.perturb_momentum, 
 
-                        pgd_attack.perturb_Adam_nosign,
+                        # pgd_attack.perturb_Adam_nosign,
                         pgd_attack.perturb_Adam, 
-                        pgd_attack.perturb_adagrad, 
-                        pgd_attack.perturb_rmsprop, 
+                        # pgd_attack.perturb_adagrad, 
+                        # pgd_attack.perturb_rmsprop, 
                         ]
-        for attackmodel in attackmodels:
-            print('\n',attackmodel)
+        attackmodels = [
+                        [pgd_attack.perturb_vanilla, 0.01],
+                        [pgd_attack.perturb_vanilla, 0.03],
+                        [pgd_attack.perturb_vanilla, 0.05],
+                        [pgd_attack.perturb_vanilla, 0.1],
+                        [pgd_attack.perturb_vanilla, 0.2],
+                        # [pgd_attack.perturb_nesterov, 0.01],
+                        # [pgd_attack.perturb_nesterov, 0.03], 
+                        # [pgd_attack.perturb_nesterov, 0.05],
+                        # [pgd_attack.perturb_nesterov, 0.1], 
+                        # [pgd_attack.perturb_nesterov, 0.2], 
+                        [pgd_attack.perturb_Adam_nosign, 0.01],
+                        [pgd_attack.perturb_Adam_nosign, 0.03], 
+                        [pgd_attack.perturb_Adam_nosign, 0.05],
+                        [pgd_attack.perturb_Adam_nosign, 0.1], 
+                        [pgd_attack.perturb_Adam_nosign, 0.2], 
+                        ]
+        for attackmodel, epsilon in attackmodels:
+            print('\n',attackmodel, f'eps = {str(epsilon)}')
 
             self.restore_model(self.test_iters)
             
@@ -1000,7 +1017,7 @@ class Solver(object):
                     # x_adv, perturb = pgd_attack.perturb_blur_eot(x_real, gen_noattack, c_trg)                 # EoT blur adaptation
                     # x_adv, perturb = pgd_attack.perturb_blur_eot_momentum(x_real, gen_noattack, c_trg)        # EoT blur momentum
                     # x_adv, perturb = pgd_attack.perturb_momentum(x_real, gen_noattack, c_trg)                 # momentum
-                    x_adv, perturb = attackmodel(x_real, gen_noattack, c_trg)                     # Adam
+                    x_adv, perturb = attackmodel(x_real, gen_noattack, c_trg, epsilon)                     # Adam
                     # x_adv, perturb = pgd_attack.perturb_momentum_scaled(x_real, gen_noattack, c_trg)          # momentum scale invariance
                     # x_adv, perturb = pgd_attack.perturb_Adam_scaled(x_real, gen_noattack, c_trg)                # adam scale invariance
 
@@ -1021,6 +1038,7 @@ class Solver(object):
                         x_fake_list.append(x_adv)
                         # x_fake_list.append(perturb)
                         x_fake_list.append(gen)
+                        x_fake_list.append(gen_noattack)
 
 
                         metric = PSNR()
@@ -1043,17 +1061,17 @@ class Solver(object):
 
 
 
-                        l1_error += F.l1_loss(gen, gen_noattack)
-                        l2_error += F.mse_loss(gen, gen_noattack)
-                        l0_error += (gen - gen_noattack).norm(0)
-                        min_dist += (gen - gen_noattack).norm(float('-inf'))
+                        l1_error += F.l1_loss(x_real, x_adv)
+                        l2_error += F.mse_loss(x_real, x_adv)
+                        # l0_error += (gen - gen_noattack).norm(0)
+                        # min_dist += (gen - gen_noattack).norm(float('-inf'))
                         if F.mse_loss(gen, gen_noattack) > 0.05:
                             n_dist += 1
                         n_samples += 1
 
                 # Save the translated images.
                 x_concat = torch.cat(x_fake_list, dim=3)
-                result_path = os.path.join(self.result_dir, f'{str(attackmodel)}-{i+1}-images.jpg')
+                result_path = os.path.join(self.result_dir, f'{str(attackmodel)[28:48]}-{i+1}-images.jpg')
                 save_image(self.denorm(x_concat.data.cpu()), result_path, nrow=1, padding=0)
                 # if i == 49:     # stop after this many images
                 #     break
@@ -1065,6 +1083,7 @@ class Solver(object):
 
             print('{} images. L1 error: {}. L2 error: {}. prop_dist: {}. L0 error: {}. L_-inf error: {}.'.format(n_samples, 
             l1_error / n_samples, l2_error / n_samples, float(n_dist) / n_samples, l0_error / n_samples, min_dist / n_samples))
+
 
     def test_attack_feats(self):
         """Feature-level attacks"""

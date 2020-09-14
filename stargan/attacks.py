@@ -76,9 +76,9 @@ class LinfPGDAttack(object):
         self.feat = feat
 
         # PGD or I-FGSM?
-        self.rand = True
+        self.rand = False
 
-    def perturb_vanilla(self, X_nat, y, c_trg):
+    def perturb_vanilla(self, X_nat, y, c_trg, epsilon):
         """
         Vanilla Attack.
         """
@@ -89,7 +89,7 @@ class LinfPGDAttack(object):
             # use the following if FGSM or I-FGSM and random seeds are fixed
             # X = X_nat.clone().detach_() + torch.tensor(np.random.uniform(-0.001, 0.001, X_nat.shape).astype('float32')).cuda()    
 
-        for i in range(self.k):
+        for i in range(self.k*2):
             X.requires_grad = True
             output, feats = self.model(X, c_trg)
 
@@ -104,7 +104,7 @@ class LinfPGDAttack(object):
 
             X_adv = X + self.a * grad.sign()
 
-            eta = torch.clamp(X_adv - X_nat, min=-self.epsilon, max=self.epsilon)
+            eta = torch.clamp(X_adv - X_nat, min=-epsilon, max=epsilon)
             X = torch.clamp(X_nat + eta, min=-1, max=1).detach_()
 
         self.model.zero_grad()
@@ -184,7 +184,7 @@ class LinfPGDAttack(object):
 
         return X, X - X_nat
 
-    def perturb_nesterov(self, X_nat, y, c_trg):
+    def perturb_nesterov(self, X_nat, y, c_trg, epsilon):
         if self.rand:
             X = X_nat.clone().detach_() + torch.tensor(np.random.uniform(-self.epsilon, self.epsilon, X_nat.shape).astype('float32')).to(self.device)
         else:
@@ -210,7 +210,7 @@ class LinfPGDAttack(object):
             grad = X.grad
             past_grads = momentum(m, grad, past_grads)
             X_adv = X + self.a * past_grads.sign()
-            eta = torch.clamp(X_adv - X_nat, min=-self.epsilon, max=self.epsilon)
+            eta = torch.clamp(X_adv - X_nat, min=-epsilon, max=epsilon)
             X = torch.clamp(X_nat + eta, min=-1, max=1).detach_()
 
             if i!=(self.k-1): X = X + self.a * m * past_grads
@@ -302,7 +302,7 @@ class LinfPGDAttack(object):
         return X, X - X_nat
 
 
-    def perturb_Adam(self, X_nat, y, c_trg):
+    def perturb_Adam(self, X_nat, y, c_trg, epsilon):
         """
         Adam Attack.
         """
@@ -334,7 +334,7 @@ class LinfPGDAttack(object):
 
             X_adv = X + new_a * grad.sign()
 
-            eta = torch.clamp(X_adv - X_nat, min=-self.epsilon, max=self.epsilon)
+            eta = torch.clamp(X_adv - X_nat, min=-epsilon, max=epsilon)
             X = torch.clamp(X_nat + eta, min=-1, max=1).detach_()
 
         self.model.zero_grad()
