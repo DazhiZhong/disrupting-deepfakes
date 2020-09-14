@@ -948,17 +948,17 @@ class Solver(object):
 
         # Load the trained generator.
         pgd_attack = attacks.LinfPGDAttack(model=self.G, device=self.device, feat=None)
-        attackmodels = [
-                        # pgd_attack.perturb_fgsm, 
+        allattackmodels = [
+                        pgd_attack.perturb_fgsm, 
                         pgd_attack.perturb_vanilla, 
                         
                         pgd_attack.perturb_nesterov, 
-                        # pgd_attack.perturb_momentum, 
+                        pgd_attack.perturb_momentum, 
 
-                        # pgd_attack.perturb_Adam_nosign,
+                        pgd_attack.perturb_Adam_nosign,
                         pgd_attack.perturb_Adam, 
-                        # pgd_attack.perturb_adagrad, 
-                        # pgd_attack.perturb_rmsprop, 
+                        pgd_attack.perturb_adagrad, 
+                        pgd_attack.perturb_rmsprop, 
                         ]
         attackmodels = [
                         [pgd_attack.perturb_vanilla, 0.01],
@@ -1010,16 +1010,7 @@ class Solver(object):
                         # x_real_mod = self.blur_tensor(x_real_mod) # use blur
                         gen_noattack, gen_noattack_feats = self.G(x_real_mod, c_trg)
 
-                    # Attacks
-                    # x_adv, perturb = pgd_attack.perturb_vanilla(x_real, gen_noattack, c_trg)                  # Vanilla attack
-                    # x_adv, perturb, blurred_image = pgd_attack.perturb_blur(x_real, gen_noattack, c_trg)      # White-box attack on blur
-                    # x_adv, perturb = pgd_attack.perturb_blur_iter_full(x_real, gen_noattack, c_trg)           # Spread-spectrum attack on blur
-                    # x_adv, perturb = pgd_attack.perturb_blur_eot(x_real, gen_noattack, c_trg)                 # EoT blur adaptation
-                    # x_adv, perturb = pgd_attack.perturb_blur_eot_momentum(x_real, gen_noattack, c_trg)        # EoT blur momentum
-                    # x_adv, perturb = pgd_attack.perturb_momentum(x_real, gen_noattack, c_trg)                 # momentum
                     x_adv, perturb = attackmodel(x_real, gen_noattack, c_trg, epsilon)                     # Adam
-                    # x_adv, perturb = pgd_attack.perturb_momentum_scaled(x_real, gen_noattack, c_trg)          # momentum scale invariance
-                    # x_adv, perturb = pgd_attack.perturb_Adam_scaled(x_real, gen_noattack, c_trg)                # adam scale invariance
 
                     # Generate adversarial example
                     x_adv = x_real + perturb
